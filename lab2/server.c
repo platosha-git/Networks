@@ -51,14 +51,15 @@ int main(void)
         return EXIT_FAILURE;
     }
 
-    struct sockaddr_in addr;
-    memset((char *) &addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(PORT);
-    addr.sin_addr.s_addr = htonl(INADDR_ANY);    
+    struct sockaddr_in addr = {
+        addr.sin_family = AF_INET,
+        addr.sin_port = htons(PORT),
+        addr.sin_addr.s_addr = htonl(INADDR_ANY)
+    };
 
-
-    if (bind(sock, (struct sockaddr*) &addr, sizeof(addr)) < 0) {
+    ssize_t err = bind(sock, (struct sockaddr*) &addr, sizeof(addr));
+    if (err < 0) {
+        close(sock);
         perror("bind failed");
         return EXIT_FAILURE;
     }
@@ -69,7 +70,8 @@ int main(void)
     char msg[MSG_LEN];
     while (1) {
         int len = sizeof(addr);
-        if (recvfrom(sock, msg, sizeof(msg), 0, (struct sockaddr *) &addr, &len) == -1) {
+        err = recvfrom(sock, msg, sizeof(msg), 0, (struct sockaddr *) &addr, &len);
+        if (err == -1) {
             perror("recvfrom");
             return EXIT_FAILURE;
         }
