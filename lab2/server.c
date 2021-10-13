@@ -1,16 +1,46 @@
 #include "sockinc.h"
 
-int convert_num(int dec_num, const int base)
+#define NUM_BITS 7
+
+static int sock = 0;
+
+void signal_handler(int sig) 
 {
-    int res = 0, i = 1;
+    close(sock);
+    exit(0);
+}
+
+void output_num(const char *msg, const char buffer[NUM_BITS])
+{
+    printf("%s = ", msg);
+    for (int i = 0; i < 7; i++) {
+        printf("%c", buffer[i]);
+    }
+    printf("\n");
+}
+
+void convert_num(int dec_num, const int base, char (*buffer)[NUM_BITS], const char *msg)
+{
+    memset(*buffer, 0, 7);
+    int i = 6;
+
     while (dec_num > 0) {
-        
-        res += (dec_num % base) * i;
+        int x = dec_num % base;
         dec_num /= base;
-        i *= 10;
+
+        char z;
+        if(x < 10) {
+            z = '0' + x;
+        }
+        else {
+            z = 'A' - 10 + x;
+        }
+        
+        (*buffer)[i] = z;
+        i--;
     }
 
-    return res;
+    output_num(msg, *buffer);
 }
 
 int main(void)
@@ -33,8 +63,8 @@ int main(void)
         return EXIT_FAILURE;
     }
         
-
-    printf("Listen port %d.\n", PORT);
+    signal(SIGINT, signal_handler);
+    printf("Listen port %d.\n\n", PORT);
 
     char msg[MSG_LEN];
     while (1) {
@@ -43,23 +73,16 @@ int main(void)
             perror("recvfrom");
             return EXIT_FAILURE;
         }
-        
-        printf("Received message %s\n", msg);
 
+        char buffer[NUM_BITS];
         int dec_num = atoi(msg);
-        int bin_num = convert_num(dec_num, 2);
-        int hex_num = convert_num(dec_num, 16);
-        int oct_num = convert_num(dec_num, 8);
-        int my_num = convert_num(dec_num, 9);
 
         printf("dec_num = %d\n", dec_num);
-        printf("bin_num = %d\n", bin_num);
-        printf("hex_num = %d\n", hex_num);
-        printf("oct_num = %d\n", oct_num);
-        printf("my_num = %d\n", my_num);
+        convert_num(dec_num, 2, &buffer, "bin_num");
+        convert_num(dec_num, 16, &buffer, "hex_num");
+        convert_num(dec_num, 8, &buffer, "oct_num");
+        convert_num(dec_num, 9, &buffer, "my_num");
     }
-
-    close(sock);
 
     return 0;
 }

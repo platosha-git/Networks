@@ -8,13 +8,13 @@ int main(void)
         return EXIT_FAILURE;
     }
 
-    struct sockaddr_in addr;
-    memset((char *) &addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(PORT);
-    
+    struct sockaddr_in addr = {
+        .sin_family = AF_INET,
+        .sin_port = htons(PORT)
+    };
     
     if (inet_aton(IP, &addr.sin_addr) == 0) {
+        close(sock);
         perror("inet_aton failed");
         return EXIT_FAILURE;
     }
