@@ -1,10 +1,14 @@
+import sys, signal, time
 import smtplib
-import sys
-from os.path import isfile, join, basename, splitext
-from os import listdir
+from os.path import basename
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+
+end = False
+def signal_handling(signum, frame):           
+    global end                         
+    end = True 
 
 def input_args1():
 	print("Message:")
@@ -14,11 +18,10 @@ def input_args1():
 	return mail_to, mail_from, password
 
 def input_args2():
-	time = input("Time interval: ")
+	time_interval = int(input("Time interval: "))
 	mail_text = input("Message text: ")
 	filename = input("Filename (0 - without file): ")
-
-	return time, mail_text, filename
+	return time_interval, mail_text, filename
 
 
 def form_message(mail_to, mail_from, mail_text):
@@ -27,7 +30,6 @@ def form_message(mail_to, mail_from, mail_text):
 	msg['To'] = mail_to
 	msg['Subject'] = "Test message"
 	msg.attach(MIMEText(mail_text, 'plain'))
-
 	return msg
 
 
@@ -50,23 +52,19 @@ def send_message(smtphost, login, password, msg):
 
 
 def main():
-	#mail_to, mail_from, password = input_args1()
-	mail_to = 'networktest1@mail.ru'
-	mail_from = '1platosha@mail.ru'
-	password = '21Rfrnec!'
-
-	#time, mail_text, filename = input_args2()
-	time = 1
-	mail_text = 'qwe'
-	filename = 'test.txt'
+	mail_to, mail_from, password = input_args1()
+	time_interval, mail_text, filename = input_args2()
 
 	msg = form_message(mail_to, mail_from, mail_text)
 	msg = add_file(msg, filename)
 
 	smtphost = ["smtp.mail.ru", 25]
-	send_message(smtphost, mail_from, password, msg);
-	
-	print("Message sent to %s!" % (mail_to))
+
+	signal.signal(signal.SIGINT,signal_handling)
+	while (not end):
+		send_message(smtphost, mail_from, password, msg);
+		print("Message sent to %s!" % (mail_to))
+		time.sleep(time_interval)
 
 
 if __name__ == '__main__':
