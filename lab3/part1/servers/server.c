@@ -23,7 +23,7 @@ static int sock = 0;
 void signal_handler(int sig)
 {
     printf("\nCatched signal CTRL+C\n");
-    printf("Server will be stopped.\n");
+    printf("Server stopping ...\n");
 
     close(sock);
     exit(0);
@@ -66,7 +66,7 @@ int recv_filename(int fd, char* filename, size_t buffer_size)
     
     int size = recv(fd, filename, buffer_size, 0);
     if (size <= 0) {
-        printf("Client (%d) disconnected!\n", fd);
+        printf("\nClient (fd = %d) disconnected!\n", fd);
         cur_clients--;
         return -1;
     }
@@ -75,7 +75,7 @@ int recv_filename(int fd, char* filename, size_t buffer_size)
     if (filename[size - 1] == '\n')
         filename[size - 1] = 0;
 
-    printf("Client (%d) requested file: %s.\n", fd, filename);
+    printf("Client (fd = %d) requested file: %s.\n", fd, filename);
     return 0;
 }
 
@@ -91,7 +91,7 @@ int send_file(int fd, const char* filename)
         file_size = file_stat.st_size;
     }
 
-    printf("The size of the transferred file: %ld\n", file_size);
+    printf("The size of the requested file: %ld\n", file_size);
     int64_t tmp_file_size = htonll(file_size);
     
     if (send(fd, &tmp_file_size, sizeof(int64_t), 0) < 0) {
@@ -112,8 +112,10 @@ int send_file(int fd, const char* filename)
         }
     }
  
-    if (file_fd > 0)
+    if (file_fd > 0) {
         close(file_fd);
+    }
+
     return exit_code;
 }
 
@@ -152,6 +154,9 @@ void process_clients(fd_set *set, int* const clients)
             if (recv_filename(fd, filename, BUF_LEN) < 0 || send_file(fd, filename) < 0) {
                 close(fd);
                 clients[i] = 0;
+            }
+            else {
+                printf("File sent successfully!\n");
             }
         }
     }
