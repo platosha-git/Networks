@@ -134,7 +134,7 @@ int main()
     signal(SIGINT, sigint_catcher);
     struct sockaddr_in server_addr, client_addr;
     server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(SERVER_PORT);
+    server_addr.sin_port = htons(PORT);
     server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
  
     if (bind(fd_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
@@ -182,7 +182,7 @@ int main()
             }
 
             printf("New client: fd = %d, address = %s:%d\n", accepted_socket, inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
-            send_filenames(accepted_socket);
+            //send_filenames(accepted_socket);
         }
         char filename[BUF_LEN];
         for (int i = 0; i < MAX_COUNT; i++) {

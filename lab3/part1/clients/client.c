@@ -14,20 +14,6 @@
 #include <math.h>
 #include "../common.h"
 
-
-int get_filenames(int sock)
-{
-    char filenames[NAME_LEN];
-    int size = recv(sock, filenames, NAME_LEN, 0);
-    if (size == 0) {
-        perror("recv failed");
-        return -1;
-    }
-    
-    printf("Available server files:\n%s\n", filenames);
-    return 0;
-}
-
 int get_file(int fd, const char* filename)
 {
     int64_t file_size = 0;
@@ -92,29 +78,28 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
  
+    //int exit_code = get_filenames(sock);
+
     char filename[NAME_LEN];
-    int exit_code = get_filenames(sock);
+    printf("Input filename: ");
+    fgets(filename, NAME_LEN, stdin);
+    printf("\n");
 
-    while (exit_code == 0) {
-        printf("Input filename: ");
-        fgets(filename, NAME_LEN, stdin);
-        printf("\n");
-
-        size_t size = strlen(filename);
-        if (filename[size - 1] == '\n') {
-            filename[size - 1] = 0;
-            size--;
-        }
-        
-        if (send(sock, filename, size, 0) < 0) {
-            perror("send failed");
-            return EXIT_FAILURE;
-        }
-        
-        exit_code = get_file(sock, filename);
+    size_t size = strlen(filename);
+    if (filename[size - 1] == '\n') {
+        filename[size - 1] = 0;
+        size--;
     }
     
+    ssize_t err = sendto(sock, filename, size, 0, (struct sockaddr *) &addr, sizeof(addr));
+    if (err == -1) {
+        close(sock);
+        perror("sendto failed");
+        return EXIT_FAILURE;
+    }
+        
+    get_file(sock, filename);    
     close(sock);
 
-    return exit_code;
+    return 0;
 }
