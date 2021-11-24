@@ -11,6 +11,7 @@
 #define SERVER_HOST "localhost"
 #define SERVER_PORT 5000
 #define PACKET_SIZE 1024
+#define NAME_LEN 512
 
 #endif
 #endif // __COMMON_H__
