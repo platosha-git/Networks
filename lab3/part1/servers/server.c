@@ -60,56 +60,63 @@ int get_files()
 
 int recv_filename(int fd, char* filename, size_t buffer_size)
 {
-    struct sockaddr_in client_addr;
-    int client_addr_size = sizeof(client_addr);
-    getpeername(fd, (struct sockaddr *)&client_addr, (socklen_t *)&client_addr_size);
+    struct sockaddr_in addr;
+    int addr_size = sizeof(addr);
+    getpeername(fd, (struct sockaddr*) &addr, (socklen_t*) &addr_size);
+    
     int size = recv(fd, filename, buffer_size, 0);
     if (size <= 0) {
+        printf("Client %d disconnected!\n", cur_clients);
         cur_clients--;
-        printf("Client %s:%d disconnected!\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
         return -1;
     }
 
     filename[size] = 0;
     if (filename[size - 1] == '\n')
         filename[size - 1] = 0;
-    printf("Client %s:%d requested file: %s.\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port), filename);
+
+    printf("Client %d requested file: %s.\n", cur_clients, filename);
     return 0;
 }
 
 int send_file(int fd, const char* filename)
 {
-    int code_error = 0;
+    printf("Here\n");
+
+    int exit_code = 0;
+
     int file_fd = open(filename, O_RDONLY);
     int64_t file_size = -1;
     struct stat file_stat;
-    if (file_fd > 0 && fstat(file_fd, &file_stat) == 0 && S_ISREG(file_stat.st_mode))
+
+    if (file_fd > 0 && fstat(file_fd, &file_stat) == 0 && S_ISREG(file_stat.st_mode)) {
         file_size = file_stat.st_size;
+    }
+
     printf("The size of the transferred file: %ld\n", file_size);
     int64_t tmp_file_size = htonll(file_size);
     
     if (send(fd, &tmp_file_size, sizeof(int64_t), 0) < 0) {
         printf("Failed send size of file: %s", strerror(errno));
-        code_error = errno;
+        exit_code = errno;
     }
     
-    if (!code_error && file_size >= 0) {
+    if (!exit_code && file_size >= 0) {
         char packet[PACKET_SIZE];
         ssize_t read_bytes;
         
-        while (!code_error && (read_bytes = read(file_fd, packet, PACKET_SIZE - 1)) > 0) {
+        while (!exit_code && (read_bytes = read(file_fd, packet, PACKET_SIZE - 1)) > 0) {
             packet[read_bytes] = 0;
             if (send(fd, packet, read_bytes, 0) < 0) {
                 printf("Failed send file packet: %s", strerror(errno));
-                code_error = errno;
+                exit_code = errno;
             }
-            // printf("send chunck: %s.\n", packet);
         }
     }
  
     if (file_fd > 0)
         close(file_fd);
-    return code_error;
+    return exit_code;
 }
 
 int new_client_handler(int* const clients)
@@ -132,7 +139,7 @@ int new_client_handler(int* const clients)
     }
 
     cur_clients++;
-    printf("\nClient %d (fd = %d)\n\n", cur_clients, new_sock);
+    printf("\nClient %d (fd = %d) connected!\n\n", cur_clients, new_sock);
     return 0;
 }
 
@@ -143,6 +150,7 @@ void process_clients(fd_set *set, int* const clients)
     for (int i = 0; i < MAX_CLIENTS; i++) {
         int fd = clients[i];
         if ((fd > 0) && FD_ISSET(fd, set)) {
+            
             if (recv_filename(fd, filename, BUF_LEN) < 0 || send_file(fd, filename) < 0) {
                 close(fd);
                 clients[i] = 0;
@@ -165,8 +173,7 @@ int main()
         addr.sin_addr.s_addr = htonl(INADDR_ANY)
     };
  
-    ssize_t exit_code = bind(sock, (struct sockaddr*) &addr, sizeof(addr));
-    if (exit_code < 0) {
+    if (bind(sock, (struct sockaddr*) &addr, sizeof(addr)) < 0) {
         perror("bind failed");
         return EXIT_FAILURE;
     }
@@ -180,9 +187,8 @@ int main()
     }
     
     printf("Server running ...\n");
-    exit_code = get_files();
-    if (exit_code != 0) {
-        return exit_code;
+    if (get_files() < 0 ) {
+        return -1;
     }
 
     int clients[MAX_CLIENTS] = { 0 };
@@ -201,14 +207,13 @@ int main()
             max_fd = (cur_client > max_fd) ? (cur_client) : (max_fd);
         }
 
-        int active_client = pselect(max_fd + 1, &set, NULL, NULL, NULL, NULL);
-        if (active_client < 0) {
+        if (pselect(max_fd + 1, &set, NULL, NULL, NULL, NULL) < 0) {
             perror("pselect failed");
             return EXIT_FAILURE;
         }
 
         if (FD_ISSET(sock, &set)) {
-            exit_code = new_client_handler(clients);
+            int exit_code = new_client_handler(clients);
             if (exit_code != 0) {
                 return exit_code;
             }
