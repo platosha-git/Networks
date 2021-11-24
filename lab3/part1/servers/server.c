@@ -23,14 +23,16 @@ static int sock = 0;
 void signal_handler(int sig)
 {
     printf("\nCatched signal CTRL+C\n");
-    printf("Server will stop\n");
+    printf("Server will be stopped.\n");
 
     close(sock);
     exit(0);
 }
 
-size_t read_files(char* buffer, size_t buf_size)
+int get_files()
 {
+    char buffer[BUF_LEN] = { 0 };
+
     DIR *d = opendir(".");
     if (!d) {
         printf("Error while reading files\n");
@@ -40,32 +42,19 @@ size_t read_files(char* buffer, size_t buf_size)
     buffer[0] = 0;
     size_t cur_size = 0;
     struct dirent *dir;
-    size_t count_files = 0;
     while((dir = readdir(d)) != NULL) {
         if (strcmp(dir->d_name, ".") && strcmp(dir->d_name, "..")) {
             size_t filename_size = strlen(dir->d_name) + 1;
-            if (filename_size + cur_size < buf_size) {
+            if (filename_size + cur_size < BUF_LEN) {
                 strcat(buffer, dir->d_name);
                 cur_size += filename_size;
                 buffer[cur_size - 1] = '\n';
             }
-            count_files++;
         }
     }
     closedir(d);
-    
-    return count_files;
-}
 
-int send_filenames(int fd)
-{
-    char buffer[BUF_LEN];
-    size_t count_files = read_files(buffer, BUF_LEN);
-    if (send(fd, buffer, strlen(buffer) + 1, 0) < 0) {
-        printf("Failed send filenames: %s", strerror(errno));
-        return errno;
-    }
- 
+    printf("\nServer directory files:\n%s\n", buffer);
     return 0;
 }
 
@@ -191,6 +180,10 @@ int main()
     }
     
     printf("Server running ...\n");
+    exit_code = get_files();
+    if (exit_code != 0) {
+        return exit_code;
+    }
 
     int clients[MAX_CLIENTS] = { 0 };
     while (1) {
