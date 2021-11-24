@@ -14,13 +14,13 @@
 #include <math.h>
 #include "../common.h"
 
-int get_file(int fd, const char* filename)
+int get_file(int socket, const char* filename)
 {
     int64_t size = 0;
     
-    ssize_t exit_code = recv(fd, &size, sizeof(size), 0);
+    ssize_t exit_code = recv(socket, &size, sizeof(size), 0);
     if (exit_code == -1) {
-        perror("recv failed");
+        perror("recv size failed");
         return EXIT_FAILURE;
     }
  
@@ -29,26 +29,26 @@ int get_file(int fd, const char* filename)
         printf("File not found!\n");
         return 0;
     }
- 
-    printf("The size of the transferred file: %" PRId64 " byte\n", size);
     
-    int file_fd = open(filename, O_CREAT | O_WRONLY | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
+    int fd = open(filename, O_CREAT | O_WRONLY | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
+    
+    exit_code = 0;
     char packet[PACKET_SIZE];
-    
-    for (size_t i = 0; i < size;) {
-        size_t size = recv(fd, packet, PACKET_SIZE, 0);
+    size_t i = 0;
+    while (i < size) {
+        size_t size = recv(socket, packet, PACKET_SIZE, 0);
         if (size == -1) {
-            perror("recv failed");
+            perror("recv content failed");
             exit_code = EXIT_FAILURE;
             break;
         }
 
         packet[size] = 0;
-        write(file_fd, packet, size);
+        write(fd, packet, size);
         i += size;
     }
  
-    close(file_fd);
+    close(fd);
     return exit_code;
 }
 
