@@ -15,18 +15,17 @@
 #include "../common.h"
 
 
-int get_filenames(int fd)
+int get_filenames(int sock)
 {
     char filenames[NAME_LEN];
-    int size = recv(fd, filenames, NAME_LEN, 0);
+    int size = recv(sock, filenames, NAME_LEN, 0);
     if (size == 0) {
-        perror("get_filenames failed");
+        perror("recv failed");
         return -1;
     }
-    else {
-        printf("Server directory files:\n%s\n", filenames);
-        return 0;
-    }
+    
+    printf("Available server files:\n%s\n", filenames);
+    return 0;
 }
 
 int get_file(int fd, const char* filename)
@@ -76,19 +75,19 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
  
-    struct hostent* host = gethostbyname(SERVER_HOST);
-    if (host == NULL) {
+    struct hostent *server = gethostbyname(HOST);
+    if (server == NULL) {
         perror("gethostbyname failed");
         return EXIT_FAILURE;
     }
  
     struct sockaddr_in addr = {
         .sin_family = AF_INET,
-        .sin_port = htons(SERVER_PORT),
-        .sin_addr = *((struct in_addr *)host->h_addr_list[0]),
+        .sin_port = htons(PORT),
+        .sin_addr = *((struct in_addr *) server->h_addr_list[0])
     };
     
-    if (connect(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+    if (connect(sock, (struct sockaddr*) &addr, sizeof(addr)) < 0) {
         perror("connect failed");
         return EXIT_FAILURE;
     }
@@ -116,5 +115,6 @@ int main(int argc, char **argv)
     }
     
     close(sock);
+
     return exit_code;
 }
