@@ -14,16 +14,18 @@
 #include <dirent.h>
 #include "../common.h"
 
-#define FILES_DIR "./files"
 #define BUF_LEN 512
-#define MAX_COUNT 8
+#define MAX_CLIENTS 5
 
-int fd_socket;
+static int cur_clients = 0;
+static int sock = 0;
 
-void sigint_catcher(int signum)
+void signal_handler(int sig)
 {
-    printf("Ctrl+C caught - closing socket \n");
-    close(fd_socket);
+    printf("\nCatched signal CTRL+C\n");
+    printf("Server will stop\n");
+
+    close(sock);
     exit(0);
 }
 
@@ -74,6 +76,7 @@ int recv_filename(int fd, char* filename, size_t buffer_size)
     getpeername(fd, (struct sockaddr *)&client_addr, (socklen_t *)&client_addr_size);
     int size = recv(fd, filename, buffer_size, 0);
     if (size <= 0) {
+        cur_clients--;
         printf("Client %s:%d disconnected!\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
         return -1;
     }
@@ -120,80 +123,106 @@ int send_file(int fd, const char* filename)
     return code_error;
 }
 
+int new_client_handler(int* const clients)
+{
+    struct sockaddr_in addr;
+    int addr_size = sizeof(addr);
+    
+    int new_sock = accept(sock, (struct sockaddr*) &addr, (socklen_t*) &addr_size);
+    if (new_sock < 0) {
+        close(sock);
+        perror("accept failed");
+        return EXIT_FAILURE;
+    }
+            
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (clients[i] == 0) {
+            clients[i] = new_sock;
+            break;
+        }
+    }
+
+    cur_clients++;
+    printf("\nClient %d (fd = %d)\n\n", cur_clients, new_sock);
+    return 0;
+}
+
+void process_clients(fd_set *set, int* const clients)
+{
+    char filename[BUF_LEN] = { 0 };
+    
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        int fd = clients[i];
+        if ((fd > 0) && FD_ISSET(fd, set)) {
+            if (recv_filename(fd, filename, BUF_LEN) < 0 || send_file(fd, filename) < 0) {
+                close(fd);
+                clients[i] = 0;
+            }
+        }
+    }
+}
+
 int main()
 {
-    printf("Server starting ...\n");
-    chdir(FILES_DIR);
-
-    fd_socket = socket(AF_INET, SOCK_STREAM, 0);
-    if (fd_socket < 0) {
-        printf("Failed create socket: %s\n", strerror(errno));
-        return -errno;
+    sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock == -1) {
+        perror("socker failed");
+        return EXIT_FAILURE;
     }
  
-    signal(SIGINT, sigint_catcher);
-    struct sockaddr_in server_addr, client_addr;
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(PORT);
-    server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    struct sockaddr_in addr = {
+        addr.sin_family = AF_INET,
+        addr.sin_port = htons(PORT),
+        addr.sin_addr.s_addr = htonl(INADDR_ANY)
+    };
  
-    if (bind(fd_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-        printf("Failed bind socket: %s\n", strerror(errno));
-        return errno;
-    }
- 
-    if (listen(fd_socket, MAX_COUNT) < 0) {
-        printf("Failed listen socket: %s\n", strerror(errno));
-        close(fd_socket);
-        return errno;
+    ssize_t exit_code = bind(sock, (struct sockaddr*) &addr, sizeof(addr));
+    if (exit_code < 0) {
+        perror("bind failed");
+        return EXIT_FAILURE;
     }
 
+    signal(SIGINT, signal_handler);
+
+    if (listen(sock, MAX_CLIENTS) < 0) {
+        close(sock);
+        perror("listen failed");
+        return EXIT_FAILURE;
+    }
+    
     printf("Server running ...\n");
-    int client_sockets[MAX_COUNT] = {0};
-    int client_socket = 0;
+
+    int clients[MAX_CLIENTS] = { 0 };
     while (1) {
-        fd_set rfds;
-        FD_ZERO(&rfds);
-        FD_SET(fd_socket, &rfds);
-        int max_fd = fd_socket;
-        for (int i = 0; i < MAX_COUNT; i++) {
-            int fd = client_sockets[i];
-            if (fd > 0)
-                FD_SET(fd, &rfds);
-            max_fd = (fd > max_fd) ? (fd) : (max_fd);
-        }
-        int updates_cl_count = pselect(max_fd + 1, &rfds, NULL, NULL, NULL, NULL);
-        if (FD_ISSET(fd_socket, &rfds)) {
-            struct sockaddr_in client_addr;
-            int client_addr_size = sizeof(client_addr);
-            int accepted_socket = accept(fd_socket, (struct sockaddr *)&client_addr, (socklen_t *)&client_addr_size);
-            if (accepted_socket < 0) {
-                printf("Failed accept: %s", strerror(errno));
-                close(fd_socket);
-                return errno;
-            }
-            
-            int added_flag = 0;
-            for (int i = 0; i < MAX_COUNT && !added_flag; i++) {
-                if (client_sockets[i] == 0) {
-                    client_sockets[i] = accepted_socket;
-                    added_flag = 1;
-                }
+        fd_set set;
+        FD_ZERO(&set);
+        FD_SET(sock, &set);
+        int max_fd = sock;
+
+        for (int i = 0; i < MAX_CLIENTS; i++) {
+            int cur_client = clients[i];
+            if (cur_client > 0) {
+                FD_SET(cur_client, &set);
             }
 
-            printf("New client: fd = %d, address = %s:%d\n", accepted_socket, inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
-            //send_filenames(accepted_socket);
+            max_fd = (cur_client > max_fd) ? (cur_client) : (max_fd);
         }
-        char filename[BUF_LEN];
-        for (int i = 0; i < MAX_COUNT; i++) {
-            int fd = client_sockets[i];
-            if ((fd > 0) && FD_ISSET(fd, &rfds)) {
-                if (recv_filename(fd, filename, BUF_LEN) < 0 || send_file(fd, filename) < 0) {
-                    close(fd);
-                    client_sockets[i] = 0;
-                }
+
+        int active_client = pselect(max_fd + 1, &set, NULL, NULL, NULL, NULL);
+        if (active_client < 0) {
+            perror("pselect failed");
+            return EXIT_FAILURE;
+        }
+
+        if (FD_ISSET(sock, &set)) {
+            exit_code = new_client_handler(clients);
+            if (exit_code != 0) {
+                return exit_code;
             }
         }
+
+        process_clients(&set, clients);
     }
+
     return 0;
 }
