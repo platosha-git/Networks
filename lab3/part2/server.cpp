@@ -5,7 +5,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
-#include "general.h"
+#include "common.h"
 #include <string.h>
 
 #include <chrono>
@@ -275,7 +275,7 @@ int main()
 	}
 	
 	addr.sin_family = AF_INET;
-	addr.sin_port = htons(Port);
+	addr.sin_port = htons(PORT);
 	addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
 	if(bind(listener, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
@@ -283,7 +283,7 @@ int main()
 	}
 
 	listen(listener, 10);
-	printf("Server is listening on %s:%d...\n", ServIp, Port);
+	printf("Server is listening on %s:%d...\n", ServIp, PORT);
 	
 	ThreadPool tp;
 	
