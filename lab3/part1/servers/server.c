@@ -66,7 +66,7 @@ int recv_filename(int fd, char* filename, size_t buffer_size)
     
     int size = recv(fd, filename, buffer_size, 0);
     if (size <= 0) {
-        printf("Client %d disconnected!\n", cur_clients);
+        printf("Client (%d) disconnected!\n", fd);
         cur_clients--;
         return -1;
     }
@@ -75,14 +75,12 @@ int recv_filename(int fd, char* filename, size_t buffer_size)
     if (filename[size - 1] == '\n')
         filename[size - 1] = 0;
 
-    printf("Client %d requested file: %s.\n", cur_clients, filename);
+    printf("Client (%d) requested file: %s.\n", fd, filename);
     return 0;
 }
 
 int send_file(int fd, const char* filename)
 {
-    printf("Here\n");
-
     int exit_code = 0;
 
     int file_fd = open(filename, O_RDONLY);
@@ -97,8 +95,8 @@ int send_file(int fd, const char* filename)
     int64_t tmp_file_size = htonll(file_size);
     
     if (send(fd, &tmp_file_size, sizeof(int64_t), 0) < 0) {
-        printf("Failed send size of file: %s", strerror(errno));
-        exit_code = errno;
+        perror("failed send");
+        exit_code = EXIT_FAILURE;
     }
     
     if (!exit_code && file_size >= 0) {
@@ -108,8 +106,8 @@ int send_file(int fd, const char* filename)
         while (!exit_code && (read_bytes = read(file_fd, packet, PACKET_SIZE - 1)) > 0) {
             packet[read_bytes] = 0;
             if (send(fd, packet, read_bytes, 0) < 0) {
-                printf("Failed send file packet: %s", strerror(errno));
-                exit_code = errno;
+                perror("send failed");
+                exit_code = EXIT_FAILURE;
             }
         }
     }
