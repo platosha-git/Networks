@@ -49,6 +49,8 @@ int get_file(int socket, const char* filename)
     }
  
     close(fd);
+
+    printf("File received successfully!\n");
     return exit_code;
 }
 
