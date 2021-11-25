@@ -137,21 +137,21 @@ string get_body(char* fileName)
   	return content;
 }
 
-void log_user(string userId, char* url)
+void log_user(string user_name, char* url)
 {
 	ofstream of;
-  	of.open(userId + ".txt", ios_base::app);
+  	of.open(user_name + ".txt", ios_base::app);
   	if (of.is_open()) {
-		of << userId + " visited page: " + url << endl;
+		of << user_name + " visited page: " + url << endl;
 		of.close();
   	}
 }
 
-string form_response(char* headers, int pageId)
+string form_response(char* headers, int page_id)
 {
   	string response = "";
   	statusCodes statusCode;
-  	if (pageId != -1) {
+  	if (page_id != -1) {
 		statusCode = OK;
   	}
   	else {
@@ -171,10 +171,10 @@ string form_response(char* headers, int pageId)
   	response.append("Content-Type: text/html; charset=UTF-8\r\n");
   	response.append("\r\n");
   	
-  	if (pageId != -1) {
-		string fileRes = get_body(existingURI[pageId].htmlPage);
-		if (fileRes != "") {
-	  		response.append(fileRes);
+  	if (page_id != -1) {
+		string body = get_body(existingURI[page_id].htmlPage);
+		if (body != "") {
+	  		response.append(body);
 		}
   	}
   	
@@ -182,38 +182,39 @@ string form_response(char* headers, int pageId)
 }
 
 
-string handleRequestMessage(char* innerMessage)
+string handle_request(char* innerMessage)
 {
 	char* method = strtok(innerMessage, " ");
 	char* url = strtok(NULL, " ");
 	char* httpVersion = strtok(NULL, "\r\n");
 	char* userName = strtok(NULL, "\r\n");
 	char* HostName = strtok(NULL, "\r\n");
+
 	cout << "+++" << userName << "+++" << endl;
 	char *Name = strstr(userName, ": ");
   
 	if (strcmp(method, "GET") != 0) {
-		return "It's not Get";
+		return "Only GET available!";
 	}
 
-	int pageId = -1;
+	int page_id = -1;
 	for (int i = 0; i < 3; i++) {
 		if (strcmp(url, existingURI[i].url) == 0) {
 			log_user((string)(Name + 2), url);
-			pageId = i;
+			page_id = i;
 			break;
 		}
 	}
 	
 	char res[MESSAGE_LEN];
-	return form_response(innerMessage, pageId); 
+	return form_response(innerMessage, page_id); 
 }
 
 
 string client_handler(char *message)
 {
 	printf("Client's message: %s\n", message);
-	string res = handleRequestMessage(message);
+	string res = handle_request(message);
 	//cout <<"test;" << res << endl;
 	
 	const char * msg = res.c_str();
@@ -267,7 +268,7 @@ int main()
 		return EXIT_FAILURE;
 	}
 
-	printf("Server running ...\n");
+	printf("Server running ...\n\n");
 	
 	ThreadPool tp;
 	
