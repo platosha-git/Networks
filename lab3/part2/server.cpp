@@ -101,6 +101,8 @@ private:
 	}
 }
 
+const int MAX_CLIENTS = 5;
+
   void processRequest(const std::pair<int, char*> item) {
 
 	string s = clientHandler(item.second);
@@ -229,7 +231,7 @@ int main()
 {
 	struct sockaddr_in client_addr;
   
-	sock = socket(AF_INET, SOCK_STREAM, 0);
+	int sock = socket(AF_INET, SOCK_STREAM, 0);
 	if (sock == -1) {
 		perror("socker failed");
         return EXIT_FAILURE;
@@ -248,8 +250,13 @@ int main()
 
 	//signal(SIGINT, signal_handler);
 
-	listen(sock, 10);
-	printf("Server is listening on %s:%d...\n", ServIp, PORT);
+	if (listen(sock, MAX_CLIENTS) < 0) {
+		close(sock);
+		perror("listen failed");
+		return EXIT_FAILURE;
+	}
+
+	printf("Server running ...");
 	
 	ThreadPool tp;
 	
