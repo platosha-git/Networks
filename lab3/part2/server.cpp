@@ -21,24 +21,27 @@
 
 using namespace std;
 
-struct statusCodes
+struct status_codes
 {
-	char* statusCode;
-	char* message;
+	const char* code;
+	const char* message;
 };
 
-struct existingURLS
+static status_codes OK = {"200", "OK"};
+static status_codes NotFound = {"404", "Not Found"};
+static status_codes IternalError = {"500", "Iternal error"};
+
+
+struct available_url
 {
-	char* url;
-	char* htmlPage;
+	const char* url;
+	const char* page;
 };
 
-
-static statusCodes OK = {"200", "OK"};
-static statusCodes NotFound = {"404", "Not Found"};
-static statusCodes IternalError = {"500", "Iternal error"};
-
-static existingURLS existingURI[3] = {{"/test.html", "test.html"},{"/hello.html", "<div><h1>Hello world!</h1></div>"}};
+static available_url URL[2] = {
+	{"/test.html", "test.html"},
+	{"/hello.html", "<div><h1>Hello world!</h1></div>"}
+};
 
 string client_handler(char *message);
 
@@ -53,7 +56,7 @@ public:
 		}
 
 		for (unsigned i = 0; i < numberOfThreads; ++i) {
-			threads.push_back(std::thread(&ThreadPool::doWork, this));
+			threads.push_back(thread(&ThreadPool::doWork, this));
 		}
 	}
 
@@ -121,15 +124,16 @@ void signal_handler(int sig)
     exit(0);
 }
 
-string get_body(char* fileName)
+string get_body(const char* filename)
 {
   	string content = "";
   	string line = "";
   	
-  	ifstream in(fileName);
+  	ifstream in(filename);
   	if (in.is_open()) {
 		while (getline(in, line)) {
 			content.append(line);
+			content.append("\n");
 		}
 		
 		in.close();
@@ -151,7 +155,7 @@ void log_user(string user_name, char* url)
 string form_response(char* headers, int page_id)
 {
   	string response = "";
-  	statusCodes status_code;
+  	status_codes status_code;
   	if (page_id != -1) {
 		status_code = OK;
   	}
@@ -162,7 +166,7 @@ string form_response(char* headers, int page_id)
   	response.append(HttpVersion);
   	response.append(" ");
 
-  	response.append(status_code.statusCode);
+  	response.append(status_code.code);
   	response.append(" ");
   	
   	response.append(status_code.message);
@@ -173,7 +177,7 @@ string form_response(char* headers, int page_id)
   	response.append("\r\n");
   	
   	if (page_id != -1) {
-		string body = get_body(existingURI[page_id].htmlPage);
+		string body = get_body(URL[page_id].page);
 		if (body != "") {
 	  		response.append(body);
 		}
@@ -200,7 +204,7 @@ string handle_request(char* request)
 
 	int page_id = -1;
 	for (int i = 0; i < 3; i++) {
-		if (strcmp(url, existingURI[i].url) == 0) {
+		if (strcmp(url, URL[i].url) == 0) {
 			log_user((string)(name + 2), url);
 			page_id = i;
 			break;
