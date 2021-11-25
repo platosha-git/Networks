@@ -38,7 +38,7 @@ static statusCodes OK = {"200", "OK"};
 static statusCodes NotFound = {"404", "Not Found"};
 static statusCodes IternalError = {"500", "Iternal error"};
 
-static existingURLS existingURI[3] = {{"/test.html", "test.html"},{"hello.html", "<div><h1>Hello world!</h1></div>"}};
+static existingURLS existingURI[3] = {{"/test.html", "test.html"},{"/hello.html", "<div><h1>Hello world!</h1></div>"}};
 
 string client_handler(char *message);
 
