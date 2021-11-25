@@ -40,8 +40,7 @@ static statusCodes IternalErrorCode = {"500", "Iternal error"};
 
 static existingURLS existingURI[3] = {{"/test.html", "test.html"},{"/mm.html", "mm.html"},{"klimat05.html", "<div><h1> hello world</h1></div>"}};
 
-
-string clientHandler(char *message);
+string client_handler(char *message);
 
 // This class manages a thread pool that will process requests
 class ThreadPool 
@@ -101,11 +100,10 @@ private:
 	}
 }
 
-const int MAX_CLIENTS = 5;
 
   void processRequest(const std::pair<int, char*> item) {
 
-	string s = clientHandler(item.second);
+	string s = client_handler(item.second);
 	
 	send(item.first, s.c_str(), s.size(), 0);
 
@@ -114,6 +112,17 @@ const int MAX_CLIENTS = 5;
   }
 };
 
+const int MAX_CLIENTS = 5;
+static int sock = 0;
+
+void signal_handler(int sig)
+{
+    printf("\nCatched signal CTRL+C\n");
+    printf("Server stopping ...\n");
+
+    close(sock);
+    exit(0);
+}
 
 string getInfoFromFile(char* fileName)
 {
@@ -209,7 +218,7 @@ string handleRequestMessage(char* innerMessage)
 }
 
 
-string clientHandler(char *message)
+string client_handler(char *message)
 {
 	printf("Client's message: %s\n", message);
 	string res = handleRequestMessage(message);
@@ -220,18 +229,28 @@ string clientHandler(char *message)
 	printf("Server's message:\n %s", msg);
 	
 	return msg;
-	
-	//send(sock, msg, strlen(msg), 0);
-	//cout << "ok!" << endl;
-	//close(sock);
 }
 
+int new_client_handler(int *new_sock)
+{
+	struct sockaddr_in addr;
+    int addr_size = sizeof(addr);
+    
+    *new_sock = accept(sock, (struct sockaddr*) &addr, (socklen_t*) &addr_size);
+    if (*new_sock < 0) {
+        close(sock);
+        perror("accept failed");
+        return EXIT_FAILURE;
+    }
+
+    return 0;
+}
 
 int main()
 {
 	struct sockaddr_in client_addr;
   
-	int sock = socket(AF_INET, SOCK_STREAM, 0);
+	sock = socket(AF_INET, SOCK_STREAM, 0);
 	if (sock == -1) {
 		perror("socker failed");
         return EXIT_FAILURE;
@@ -248,7 +267,7 @@ int main()
 		return EXIT_FAILURE;
 	}
 
-	//signal(SIGINT, signal_handler);
+	signal(SIGINT, signal_handler);
 
 	if (listen(sock, MAX_CLIENTS) < 0) {
 		close(sock);
@@ -256,26 +275,22 @@ int main()
 		return EXIT_FAILURE;
 	}
 
-	printf("Server running ...");
+	printf("Server running ...\n");
 	
 	ThreadPool tp;
 	
 	while(1) {
-		char *buf = (char*)malloc(MESSAGE_LEN);
-		socklen_t cli_addr_size = sizeof(client_addr);
-		
-		int new_sock = accept(sock, (struct sockaddr*) &client_addr, &cli_addr_size);
-		if(new_sock < 0) {
-			perror_and_exit("accept()", 3);
+		int new_sock = 0;
+		int exit_code = new_client_handler(&new_sock);
+		if (exit_code != 0) {
+			return EXIT_FAILURE;
 		}
 
-		int bytes_read = recv(new_sock, buf, MESSAGE_LEN, 0);
-		buf[bytes_read] = '\0';
-		char tst[MESSAGE_LEN];
-		strcpy(tst, buf);
+      	char buf[MESSAGE_LEN];
+      	int size = recv(new_sock, buf, MESSAGE_LEN, 0);
+      	buf[size] = '\0';
 
-		tp.queueWork(new_sock, tst);
-		free(buf);
+      	tp.queueWork(new_sock, buf);
 	}
 
 	close(sock);
