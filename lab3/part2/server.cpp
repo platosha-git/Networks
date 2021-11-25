@@ -34,9 +34,9 @@ struct existingURLS
 };
 
 
-static statusCodes OKCode = {"200", "OK"};
-static statusCodes NotFoundCode = {"404", "Not Found"};
-static statusCodes IternalErrorCode = {"500", "Iternal error"};
+static statusCodes OK = {"200", "OK"};
+static statusCodes NotFound = {"404", "Not Found"};
+static statusCodes IternalError = {"500", "Iternal error"};
 
 static existingURLS existingURI[3] = {{"/test.html", "test.html"},{"/mm.html", "mm.html"},{"klimat05.html", "<div><h1> hello world</h1></div>"}};
 
@@ -89,27 +89,23 @@ private:
 	  		{
 				unique_lock<mutex> g(workQueueMutex);
 				workQueueConditionVariable.wait(g, [&]{
-		  		return !workQueue.empty() || done;
-			});
+		  			return !workQueue.empty() || done;
+				});
 
-			request = workQueue.front();
-			workQueue.pop();
-	  	}
+				request = workQueue.front();
+				workQueue.pop();
+	  		}
 
-	  	processRequest(request);
+	  		processRequest(request);
+		}
 	}
-}
 
-
-  void processRequest(const std::pair<int, char*> item) {
-
-	string s = client_handler(item.second);
-	
-	send(item.first, s.c_str(), s.size(), 0);
-
-	// Close the connection
-	close(item.first);
-  }
+	void processRequest(const pair<int, char*> item) 
+	{
+		string s = client_handler(item.second);
+		send(item.first, s.c_str(), s.size(), 0);
+		close(item.first);
+	}
 };
 
 const int MAX_CLIENTS = 5;
@@ -124,69 +120,65 @@ void signal_handler(int sig)
     exit(0);
 }
 
-string getInfoFromFile(char* fileName)
+string get_body(char* fileName)
 {
-  string fileRes = "";
-  string line;
-  std:ifstream in(fileName);
-  if (in.is_open())
-  {
-	while (getline(in, line))
-	{
-		fileRes.append(line);
-	}
-
-	in.close();
-  }
-  return fileRes;
+  	string content = "";
+  	string line = "";
+  	
+  	ifstream in(fileName);
+  	if (in.is_open()) {
+		while (getline(in, line)) {
+			content.append(line);
+		}
+		
+		in.close();
+  	}
+  
+  	return content;
 }
 
-void saveUserStatistic(string userId, char* url)
+void log_user(string userId, char* url)
 {
-  std:ofstream of;
-  of.open(userId + ".txt", ios_base::app);
-  if (of.is_open())
-  {
-	of << userId + " visited page: " + url << endl;
-
-	of.close();
-  }
+	ofstream of;
+  	of.open(userId + ".txt", ios_base::app);
+  	if (of.is_open()) {
+		of << userId + " visited page: " + url << endl;
+		of.close();
+  	}
 }
 
-void perror_and_exit(char *s, int exit_code)
+string form_response(char* headers, int pageId)
 {
-	perror(s);
-	exit(exit_code);
-}
+  	string response = "";
+  	statusCodes statusCode;
+  	if (pageId != -1) {
+		statusCode = OK;
+  	}
+  	else {
+		statusCode = NotFound;
+  	}
+  
+  	response.append(HttpVersion);
+  	response.append(" ");
 
-string generateResponseMessage(char* headers, int pageId)
-{
-  string resultMsg = "";
-  statusCodes statusCode;
-  if (pageId != -1)
-  {
-	statusCode = OKCode;
-  }
-  else
-  {
-	statusCode = NotFoundCode;
-  }
-  resultMsg.append(HttpVersion);
-  resultMsg.append(" ");
-  resultMsg.append(statusCode.statusCode);
-  resultMsg.append(" ");
-  resultMsg.append(statusCode.message);
-  resultMsg.append("\r\n");
-  resultMsg.append("Connection: closed\r\n");
-  resultMsg.append("Content-Type: text/html; charset=UTF-8\r\n");
-  resultMsg.append("\r\n");
-  if (pageId != -1)
-  {
-	string fileRes = getInfoFromFile(existingURI[pageId].htmlPage);
-	if (fileRes != "")
-	  resultMsg.append(fileRes);
-  }
-  return resultMsg;
+  	response.append(statusCode.statusCode);
+  	response.append(" ");
+  	
+  	response.append(statusCode.message);
+  	response.append("\r\n");
+  	
+  	response.append("Connection: closed\r\n");
+  	response.append("Content-Type: text/html; charset=UTF-8\r\n");
+  	response.append("\r\n");
+  	
+  	if (pageId != -1) {
+		string fileRes = get_body(existingURI[pageId].htmlPage);
+		if (fileRes != "") {
+	  		response.append(fileRes);
+		}
+  	}
+  	
+  	return response;
 }
 
 
@@ -207,14 +199,14 @@ string handleRequestMessage(char* innerMessage)
 	int pageId = -1;
 	for (int i = 0; i < 3; i++) {
 		if (strcmp(url, existingURI[i].url) == 0) {
-			saveUserStatistic((string)(Name + 2), url);
+			log_user((string)(Name + 2), url);
 			pageId = i;
 			break;
 		}
 	}
 	
 	char res[MESSAGE_LEN];
-	return generateResponseMessage(innerMessage, pageId); 
+	return form_response(innerMessage, pageId); 
 }
 
 
