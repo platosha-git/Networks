@@ -16,6 +16,7 @@
 #include <queue>
 #include <mutex>
 #include <condition_variable>
+#include <signal.h>
 #include "common.h"
 
 using namespace std;
@@ -47,91 +48,58 @@ class ThreadPool
 {
 public:
 	ThreadPool() : done(false) {
-	// This returns the number of threads supported by the system. If the
-	// function can't figure out this information, it returns 0. 0 is not good,
-	// so we create at least 1
-
-		auto numberOfThreads = std::thread::hardware_concurrency();
+		auto numberOfThreads = thread::hardware_concurrency();
 		if (numberOfThreads == 0) {
 			numberOfThreads = 1;
 		}
 
 		for (unsigned i = 0; i < numberOfThreads; ++i) {
-	// The threads will execute the private member `doWork`. Note that we need
-	// to pass a reference to the function (namespaced with the class name) as
-	// the first argument, and the current object as second argument
 			threads.push_back(std::thread(&ThreadPool::doWork, this));
 		}
 	}
 
-	// The destructor joins all the threads so the program can exit gracefully.
-	// This will be executed if there is any exception (e.g. creating the threads)
 	~ThreadPool() {
-	// So threads know it's time to shut down
 		done = true;
 
-	// Wake up all the threads, so they can finish and be joined
-	workQueueConditionVariable.notify_all();
-	for (auto& thread : threads) {
-	  if (thread.joinable()) {
-		thread.join();
-	  }
+		workQueueConditionVariable.notify_all();
+		for (auto& thread : threads) {
+	  		if (thread.joinable()) {
+				thread.join();
+	  		}
+		}
+  	}
+
+  	void queueWork(int fd, char* request) {
+		lock_guard<mutex> g(workQueueMutex);
+		workQueue.push(pair<int, char*>(fd, request));
+		workQueueConditionVariable.notify_one();
+  	}
+
+private:
+  
+  	condition_variable_any workQueueConditionVariable;
+  	vector<thread> threads;
+  	mutex workQueueMutex;
+  	queue<pair<int, char*>> workQueue;
+  	
+  	bool done;
+
+  	void doWork() {
+		while (!done) {
+	  		pair<int, char*> request; 
+	  		{
+				unique_lock<mutex> g(workQueueMutex);
+				workQueueConditionVariable.wait(g, [&]{
+		  		return !workQueue.empty() || done;
+			});
+
+			request = workQueue.front();
+			workQueue.pop();
+	  	}
+
+	  	processRequest(request);
 	}
-  }
-
-  // This function will be called by the server, every time there is a request
-  // that needs to be processed by the thread pool
-  void queueWork(int fd, char* request) {
-	// Grab the mutex
-	std::lock_guard<std::mutex> g(workQueueMutex);
-
-	// Push the request to the queue
-	workQueue.push(std::pair<int, char*>(fd, request));
-
-	// Notify one thread that there are requests to process
-	workQueueConditionVariable.notify_one();
-  }
-
- private:
-  // This condition variable is used for the threads to wait until there is work
-  // to do
-  std::condition_variable_any workQueueConditionVariable;
-
-  // We store the threads in a vector, so we can later stop them gracefully
-  std::vector<std::thread> threads;
-
-  // Mutex to protect workQueue
-  std::mutex workQueueMutex;
-
-  // Queue of requests waiting to be processed
-  std::queue<std::pair<int, char*>> workQueue;
-
-  // This will be set to true when the thread pool is shutting down. This tells
-  // the threads to stop looping and finish
-  bool done;
-
-  // Function used by the threads to grab work from the queue
-  void doWork() {
-	// Loop while the queue is not destructing
-	while (!done) {
-	  std::pair<int, char*> request;
-
-	  // Create a scope, so we don't lock the queue for longer than necessary
-	  {
-		std::unique_lock<std::mutex> g(workQueueMutex);
-		workQueueConditionVariable.wait(g, [&]{
-		  // Only wake up if there are elements in the queue or the program is
-		  // shutting down
-		  return !workQueue.empty() || done;
-		});
-
-		request = workQueue.front();
-		workQueue.pop();
-	  }
-
-	  processRequest(request);
-	}
-  }
+}
 
   void processRequest(const std::pair<int, char*> item) {
 
@@ -259,22 +227,28 @@ string clientHandler(char *message)
 
 int main()
 {
-	struct sockaddr_in addr, client_addr;
+	struct sockaddr_in client_addr;
   
-	int listener = socket(AF_INET, SOCK_STREAM, 0);
-	if (listener < 0) {
-		perror_and_exit("socket()", 1);
+	sock = socket(AF_INET, SOCK_STREAM, 0);
+	if (sock == -1) {
+		perror("socker failed");
+        return EXIT_FAILURE;
 	}
 	
-	addr.sin_family = AF_INET;
-	addr.sin_port = htons(PORT);
-	addr.sin_addr.s_addr = htonl(INADDR_ANY);
+	struct sockaddr_in addr = {
+		addr.sin_family = AF_INET,
+		addr.sin_port = htons(PORT),
+		addr.sin_addr.s_addr = htonl(INADDR_ANY)
+	};
 
-	if(bind(listener, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-		perror_and_exit("bind()", 2);
+	if(bind(sock, (struct sockaddr*) &addr, sizeof(addr)) < 0) {
+		perror("bind failed");
+		return EXIT_FAILURE;
 	}
 
-	listen(listener, 10);
+	//signal(SIGINT, signal_handler);
+
+	listen(sock, 10);
 	printf("Server is listening on %s:%d...\n", ServIp, PORT);
 	
 	ThreadPool tp;
@@ -283,25 +257,20 @@ int main()
 		char *buf = (char*)malloc(MESSAGE_LEN);
 		socklen_t cli_addr_size = sizeof(client_addr);
 		
-		int sock = accept(listener, (struct sockaddr*) &client_addr, &cli_addr_size);
-		if(sock < 0) {
+		int new_sock = accept(sock, (struct sockaddr*) &client_addr, &cli_addr_size);
+		if(new_sock < 0) {
 			perror_and_exit("accept()", 3);
 		}
 
-		int bytes_read = recv(sock, buf, MESSAGE_LEN, 0);
+		int bytes_read = recv(new_sock, buf, MESSAGE_LEN, 0);
 		buf[bytes_read] = '\0';
 		char tst[MESSAGE_LEN];
 		strcpy(tst, buf);
 
-		tp.queueWork(sock, tst);
+		tp.queueWork(new_sock, tst);
 		free(buf);
-		
-		//std::thread thread(clientHandler, client_addr, listener);
-		//clientHandler(client_addr,listener);
-		//thread.join();
 	}
 
-	close(listener);
-
+	close(sock);
 	return 0;
 }
