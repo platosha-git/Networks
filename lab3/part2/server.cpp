@@ -38,7 +38,7 @@ static statusCodes OK = {"200", "OK"};
 static statusCodes NotFound = {"404", "Not Found"};
 static statusCodes IternalError = {"500", "Iternal error"};
 
-static existingURLS existingURI[3] = {{"/test.html", "test.html"},{"/mm.html", "mm.html"},{"klimat05.html", "<div><h1> hello world</h1></div>"}};
+static existingURLS existingURI[3] = {{"/test.html", "test.html"},{"hello.html", "<div><h1>Hello world!</h1></div>"}};
 
 string client_handler(char *message);
 
@@ -109,6 +109,7 @@ private:
 };
 
 const int MAX_CLIENTS = 5;
+static int cur_clients = 0;
 static int sock = 0;
 
 void signal_handler(int sig)
@@ -150,21 +151,21 @@ void log_user(string user_name, char* url)
 string form_response(char* headers, int page_id)
 {
   	string response = "";
-  	statusCodes statusCode;
+  	statusCodes status_code;
   	if (page_id != -1) {
-		statusCode = OK;
+		status_code = OK;
   	}
   	else {
-		statusCode = NotFound;
+		status_code = NotFound;
   	}
   
   	response.append(HttpVersion);
   	response.append(" ");
 
-  	response.append(statusCode.statusCode);
+  	response.append(status_code.statusCode);
   	response.append(" ");
   	
-  	response.append(statusCode.message);
+  	response.append(status_code.message);
   	response.append("\r\n");
   	
   	response.append("Connection: closed\r\n");
@@ -182,16 +183,16 @@ string form_response(char* headers, int page_id)
 }
 
 
-string handle_request(char* innerMessage)
+string handle_request(char* request)
 {
-	char* method = strtok(innerMessage, " ");
+	char* method = strtok(request, " ");
 	char* url = strtok(NULL, " ");
-	char* httpVersion = strtok(NULL, "\r\n");
-	char* userName = strtok(NULL, "\r\n");
-	char* HostName = strtok(NULL, "\r\n");
+	char* http_version = strtok(NULL, "\r\n");
+	char* user_name = strtok(NULL, "\r\n");
+	char* host_name = strtok(NULL, "\r\n");
 
-	cout << "+++" << userName << "+++" << endl;
-	char *Name = strstr(userName, ": ");
+	cout << user_name << endl;
+	char *name = strstr(user_name, ": ");
   
 	if (strcmp(method, "GET") != 0) {
 		return "Only GET available!";
@@ -200,28 +201,25 @@ string handle_request(char* innerMessage)
 	int page_id = -1;
 	for (int i = 0; i < 3; i++) {
 		if (strcmp(url, existingURI[i].url) == 0) {
-			log_user((string)(Name + 2), url);
+			log_user((string)(name + 2), url);
 			page_id = i;
 			break;
 		}
 	}
 	
-	char res[MESSAGE_LEN];
-	return form_response(innerMessage, page_id); 
+	return form_response(request, page_id); 
 }
 
 
-string client_handler(char *message)
+string client_handler(char *request)
 {
-	printf("Client's message: %s\n", message);
-	string res = handle_request(message);
-	//cout <<"test;" << res << endl;
+	printf("Request: %s\n", request);
+	string response_str = handle_request(request);
 	
-	const char * msg = res.c_str();
-	printf("====================================\n");
-	printf("Server's message:\n %s", msg);
+	const char* response = response_str.c_str();
+	printf("Response: %s\n", response);
 	
-	return msg;
+	return response;
 }
 
 int new_client_handler(int *new_sock)
@@ -236,6 +234,8 @@ int new_client_handler(int *new_sock)
         return EXIT_FAILURE;
     }
 
+    cur_clients++;
+	printf("\nClient %d (fd = %d) connected!\n\n", cur_clients, *new_sock);
     return 0;
 }
 

@@ -84,7 +84,7 @@ int main()
 	string msgstr = get_request(user_name, url);
 	const char* msg = msgstr.c_str();
 
-	printf("Sending message...\n\n");
+	printf("Sending request ...\n\n");
 	
 	exit_code = send(sock, msg, MESSAGE_LEN, 0);
 	if (exit_code == -1) {
