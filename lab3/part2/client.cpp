@@ -19,28 +19,26 @@
 
 using namespace std;
 
-void perror_and_exit(char *s, int exit_code)
-{
-	perror(s);
-	exit(exit_code);
-}
-
-
-string generateGetMessage(char *user_name, char *s)
+string get_request(char* user_name, char* url)
 {
 	string res_str = "";
-  	string str = s;
+  	string str = url;
+  	
   	res_str.append("GET ");
 	res_str.append(str + " ");
+  	
   	res_str.append("HTTP/1.1\r\n");
+  	
   	res_str.append("Username: ");
   	res_str.append(user_name);
   	res_str.append("\r\n");
+  	
   	res_str.append("Host: " + str + "\r\n");
   	res_str.append("User-Agent: Console\n");
   	res_str.append("Accept: text/html\n");
   	res_str.append("\0");
-  	cout << "request_message: " << res_str << endl;
+  	
+  	cout << "Get request: " << res_str << endl;
   	return res_str;
 }
 
@@ -65,42 +63,44 @@ int main()
 		return EXIT_FAILURE;
 	}
 
-	
-	char *buf = (char*)malloc(MESSAGE_LEN);
-
 	char user_name[NAME_LEN];
 	printf("Input user name: ");
     fgets(user_name, NAME_LEN, stdin);
-    printf("\n");
+    size_t size_name = strlen(user_name);
+    if (user_name[size_name - 1] == '\n') {
+        user_name[size_name - 1] = 0;
+        size_name--;
+    }
 	
-	char message[MESSAGE_LEN];
-	printf("enter url: \n");
-	scanf("%s", message);
-	//printf("you enetered this url: %s\n", message);
+	char url[URL_LEN];
+	printf("Input URL: ");
+	fgets(url, URL_LEN, stdin);
+	size_t size_url = strlen(url);
+    if (url[size_url - 1] == '\n') {
+        url[size_url - 1] = 0;
+        size_url--;
+    }
 	
-	//message = "gell";
-	string mes = generateGetMessage(user_name, message);
+	string msgstr = get_request(user_name, url);
+	const char* msg = msgstr.c_str();
 
-	const char * msg = mes.c_str();
-
-	//printf("The client has this message:\n");
-	  //printf("%s\n\n", msg);
 	printf("Sending message...\n\n");
 	
-	if(send(sock, msg, MESSAGE_LEN, 0) < 0)
-	{
-	  perror_and_exit("send()", 3);
+	exit_code = send(sock, msg, MESSAGE_LEN, 0);
+	if (exit_code == -1) {
+		perror("send failed");
+		return EXIT_FAILURE;
 	}
 	
-	if(recv(sock, buf, MESSAGE_LEN, 0) < 0)
-		{
-	  perror_and_exit("recv()", 4);
+	char response[MESSAGE_LEN];
+	exit_code = recv(sock, response, MESSAGE_LEN, 0);
+	if (exit_code == -1) {
+		perror("recv failed");
+		return EXIT_FAILURE;
 	}
 	
-	printf("The server returned to client this message:\n");
-	printf("%s\n\n", buf);
-	free(buf);
-	close(sock);
+	printf("The server response: %s\n\n", response);
 
+	close(sock);
 	return 0;
 }

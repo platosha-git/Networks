@@ -1,2 +1,4 @@
 Olga visited page: /test.html
 Olga visited page: /test.html
+Olga visited page: /test.html
+Olga visited page: /test.html

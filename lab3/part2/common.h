@@ -5,7 +5,9 @@
 #define ServIp "127.0.0.1"
 #define PORT 5000
 #define HttpVersion "HTTP/1.1"
-#define NAME_LEN 256
+
+#define NAME_LEN 128
+#define URL_LEN 128
 
 #define StatusCodeOk 0
 #define StatusCodeNotFound 1

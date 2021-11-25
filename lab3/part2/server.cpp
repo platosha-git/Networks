@@ -5,39 +5,31 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
-#include "common.h"
 #include <string.h>
-
 #include <chrono>
-
-#include <stdio.h>
 #include <string>
 #include <iostream>
 #include <fstream>
 #include <thread>
-#include <cstdlib> // For exit() and EXIT_FAILURE
-#include <iostream> // For cout
-#include <unistd.h> // For read
-#include <thread> // std::thread
-#include <vector> // std::vector
-#include <queue> // std::queue
-#include <mutex> // std::mutex
-#include <condition_variable> // std::condition_variable
-
-
+#include <cstdlib>
+#include <vector>
+#include <queue>
+#include <mutex>
+#include <condition_variable>
+#include "common.h"
 
 using namespace std;
 
 struct statusCodes
 {
 	char* statusCode;
-  	char* message;
+	char* message;
 };
 
 struct existingURLS
 {
-  	char* url;
-  	char* htmlPage;
+	char* url;
+	char* htmlPage;
 };
 
 
@@ -54,27 +46,27 @@ string clientHandler(char *message);
 class ThreadPool 
 {
 public:
-  	ThreadPool() : done(false) {
+	ThreadPool() : done(false) {
 	// This returns the number of threads supported by the system. If the
 	// function can't figure out this information, it returns 0. 0 is not good,
 	// so we create at least 1
 
 		auto numberOfThreads = std::thread::hardware_concurrency();
 		if (numberOfThreads == 0) {
-	  		numberOfThreads = 1;
+			numberOfThreads = 1;
 		}
 
 		for (unsigned i = 0; i < numberOfThreads; ++i) {
 	// The threads will execute the private member `doWork`. Note that we need
 	// to pass a reference to the function (namespaced with the class name) as
 	// the first argument, and the current object as second argument
-	  		threads.push_back(std::thread(&ThreadPool::doWork, this));
+			threads.push_back(std::thread(&ThreadPool::doWork, this));
 		}
-  	}
+	}
 
-  	// The destructor joins all the threads so the program can exit gracefully.
-  	// This will be executed if there is any exception (e.g. creating the threads)
-  	~ThreadPool() {
+	// The destructor joins all the threads so the program can exit gracefully.
+	// This will be executed if there is any exception (e.g. creating the threads)
+	~ThreadPool() {
 	// So threads know it's time to shut down
 		done = true;
 
@@ -221,19 +213,19 @@ string generateResponseMessage(char* headers, int pageId)
 
 string handleRequestMessage(char* innerMessage)
 {
-  	char* method = strtok(innerMessage, " ");
-  	char* url = strtok(NULL, " ");
-  	char* httpVersion = strtok(NULL, "\r\n");
-  	char* userName = strtok(NULL, "\r\n");
-  	char* HostName = strtok(NULL, "\r\n");
-  	cout << "+++" << userName << "+++" << endl;
-  	char *Name = strstr(userName, ": ");
+	char* method = strtok(innerMessage, " ");
+	char* url = strtok(NULL, " ");
+	char* httpVersion = strtok(NULL, "\r\n");
+	char* userName = strtok(NULL, "\r\n");
+	char* HostName = strtok(NULL, "\r\n");
+	cout << "+++" << userName << "+++" << endl;
+	char *Name = strstr(userName, ": ");
   
-  	if (strcmp(method, "GET") != 0) {
-  		return "It's not Get";
-  	}
+	if (strcmp(method, "GET") != 0) {
+		return "It's not Get";
+	}
 
-  	int pageId = -1;
+	int pageId = -1;
 	for (int i = 0; i < 3; i++) {
 		if (strcmp(url, existingURI[i].url) == 0) {
 			saveUserStatistic((string)(Name + 2), url);
@@ -249,19 +241,19 @@ string handleRequestMessage(char* innerMessage)
 
 string clientHandler(char *message)
 {
-  	printf("Client's message: %s\n", message);
-  	string res = handleRequestMessage(message);
+	printf("Client's message: %s\n", message);
+	string res = handleRequestMessage(message);
 	//cout <<"test;" << res << endl;
-  	
-  	const char * msg = res.c_str();
-  	printf("====================================\n");
-  	printf("Server's message:\n %s", msg);
-  	
-  	return msg;
-  	
-  	//send(sock, msg, strlen(msg), 0);
-  	//cout << "ok!" << endl;
-  	//close(sock);
+	
+	const char * msg = res.c_str();
+	printf("====================================\n");
+	printf("Server's message:\n %s", msg);
+	
+	return msg;
+	
+	//send(sock, msg, strlen(msg), 0);
+	//cout << "ok!" << endl;
+	//close(sock);
 }
 
 
@@ -288,24 +280,24 @@ int main()
 	ThreadPool tp;
 	
 	while(1) {
-	  	char *buf = (char*)malloc(MESSAGE_LEN);
-	  	socklen_t cli_addr_size = sizeof(client_addr);
-	  	
-	  	int sock = accept(listener, (struct sockaddr*) &client_addr, &cli_addr_size);
-	  	if(sock < 0) {
+		char *buf = (char*)malloc(MESSAGE_LEN);
+		socklen_t cli_addr_size = sizeof(client_addr);
+		
+		int sock = accept(listener, (struct sockaddr*) &client_addr, &cli_addr_size);
+		if(sock < 0) {
 			perror_and_exit("accept()", 3);
-	  	}
+		}
 
-	  	int bytes_read = recv(sock, buf, MESSAGE_LEN, 0);
-	  	buf[bytes_read] = '\0';
-	  	char tst[MESSAGE_LEN];
-	  	strcpy(tst, buf);
+		int bytes_read = recv(sock, buf, MESSAGE_LEN, 0);
+		buf[bytes_read] = '\0';
+		char tst[MESSAGE_LEN];
+		strcpy(tst, buf);
 
-	  	tp.queueWork(sock, tst);
-	  	free(buf);
-	  	
-	  	//std::thread thread(clientHandler, client_addr, listener);
-	  	//clientHandler(client_addr,listener);
+		tp.queueWork(sock, tst);
+		free(buf);
+		
+		//std::thread thread(clientHandler, client_addr, listener);
+		//clientHandler(client_addr,listener);
 		//thread.join();
 	}
 
