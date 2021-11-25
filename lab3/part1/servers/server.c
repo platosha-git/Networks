@@ -171,9 +171,9 @@ int main()
     }
  
     struct sockaddr_in addr = {
-        addr.sin_family = AF_INET,
-        addr.sin_port = htons(PORT),
-        addr.sin_addr.s_addr = htonl(INADDR_ANY)
+        .sin_family = AF_INET,
+        .sin_port = htons(PORT),
+        .sin_addr.s_addr = htonl(INADDR_ANY)
     };
  
     if (bind(sock, (struct sockaddr*) &addr, sizeof(addr)) < 0) {
